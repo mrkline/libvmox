@@ -5,9 +5,50 @@ libvmox is a simple video motion extractor library. Originally inspired by
 it works by filtering out moving objects in the video stream then comparing this "static" image
 to said stream.
 
+## Example
+
+Error handling and whatnot is omitted for the sake of brevity.
+
+
+```cpp
+#include "precomp.hpp" // Precompiled headers (all extrenal library headers)
+
+#include "FFmpegVideoReader.hpp"
+#include "MotionExtractor.hpp"
+#include "VideoFrame.hpp"
+
+int main()
+{
+	FFmpegVideoReader reader("myVideo.mp4");
+
+	// Get the first frame so we know the video size
+	auto frame = reader.getNextFrame(); // Returns a shared_ptr to a video frame
+
+	// The motion extractor needs to know the frame size (to allocate internal buffers) and the frame rate.
+	// Benchmarking is disabled here.
+	MotionExtractor extractor(frame->getWidth(), frame->getHeight(), reader.getFPS(), false);
+
+	// While the video isn't over, extract moving objects
+	while (frame != nullptr) {
+
+		// This mask is a 24-bit RGB image so that it can be used for both display and programmatic purposes.
+		// The motion mask is contained in the blue channel - the red and green channels can be used as-desired
+		// by the user.
+		VideoFrame& motionMask = extractor.generateMotionMask(*frame);
+
+		// Do something with the motion mask
+	}
+
+	return 0;
+}
+```
+
 ## Detection Algorithm
 
 More specifically,
+
+- The image is downscaled to speed up computations. Currently it is downscaled by a fixed amount,
+  but this should be changed soon.
 
 - Each pixel is given an integer which counts the amount of frames it has been since it changed significantly
 
@@ -35,7 +76,17 @@ This process can be tweaked by modifying any of three parameters:
 
 ## Additional tools
 
-libvmox also comes with some code for reading video files, via FFmpeg, into its frame format (see `FFmpegVideoReader`).
+- libvmox also comes with some code for reading video files, via FFmpeg, into its frame format
+  (see `FFmpegVideoReader`). You can also roll your own video reader from the `VideoReader` interface.
+
+- The motion extractor is capable of benchmarking itself to see how many frames it processes each second.
+  To enable this, pass `true` to the `benchmark` parameter of the `MotionExtractor` constructor.
+
+# Dependencies
+
+- [JsonCpp](http://jsoncpp.sourceforge.net/) is needed to allow the motion extractor to save its values to a JSON file.
+
+- [FFmpeg](http://www.ffmpeg.org/) is needed for the FFmpeg video reader.
 
 ## License
 
