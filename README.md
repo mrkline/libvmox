@@ -1,4 +1,4 @@
-# libvmox - a _v_ideo _mo_tion e_x_tractor
+# libvmox - a video motion extractor
 
 libvmox is a simple video motion extractor library. Originally inspired by
 [this CodeProject post](http://www.codeproject.com/Articles/10248/Motion-Detection-Algorithms),
