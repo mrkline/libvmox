@@ -40,6 +40,9 @@ int main()
 		VideoFrame& motionMask = extractor.generateMotionMask(*frame);
 
 		// Do something with the motion mask
+
+		// Advance the video
+		frame = reader.getNextFrame();
 	}
 
 	return 0;
@@ -56,7 +59,7 @@ int main()
 - Pixels which haven't changed for a longer period of time than their corresponding pixel in the "static" image are
   copied to the static image.
 
-- Motion detection then becomes as simple as comparing the static image to the current video frame. 
+- Motion detection then becomes as simple as comparing the static image to the current video frame.
 
 This process can be tweaked by modifying any of three parameters:
 

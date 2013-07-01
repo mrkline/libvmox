@@ -24,6 +24,9 @@ int main()
 		VideoFrame& motionMask = extractor.generateMotionMask(*frame);
 
 		// Do something with the motion mask
+
+		// Advance the video
+		frame = reader.getNextFrame();
 	}
 
 	return 0;
