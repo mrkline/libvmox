@@ -17,7 +17,7 @@ public:
 	 * \param makeCopy true to make a copy of the data. If this is false, the frame is not responsible for managing
 	 *                 the pixel memory
 	 */
-	VideoFrame(unsigned char* pix, size_t w, size_t h, size_t d, bool makeCopy)
+	VideoFrame(uint8_t* pix, size_t w, size_t h, size_t d, bool makeCopy)
 		: pixels(pix),
 		  width(w),
 		  height(h),
@@ -26,7 +26,7 @@ public:
 		  ownsPixels(makeCopy)
 	{
 		if (makeCopy) {
-			pixels = new unsigned char[width * height * depth];
+			pixels = new uint8_t[width * height * depth];
 			memcpy(pixels, pix, totalSize);
 		}
 	}
@@ -46,7 +46,7 @@ public:
 		  totalSize(w * h * d),
 		  ownsPixels(true)
 	{
-		pixels = new unsigned char[totalSize];
+		pixels = new uint8_t[totalSize];
 		if (zero)
 			memset(pixels, 0, totalSize);
 	}
@@ -60,7 +60,7 @@ public:
 		  totalSize(other.totalSize),
 		  ownsPixels(true)
 	{
-		pixels = new unsigned char[totalSize];
+		pixels = new uint8_t[totalSize];
 		memcpy(pixels, other.pixels, totalSize);
 	}
 
@@ -72,19 +72,19 @@ public:
 		memset(pixels, memsetTo, totalSize);
 	}
 
-	unsigned char* getPixels() { return pixels; }
+	uint8_t* getPixels() { return pixels; }
 
-	const unsigned char* getPixels() const { return pixels; }
-
-	/// Gets a pixel at a given coordinate
-	/// \warning Does not do bounds checking
-	/// \returns The address of the first byte of the given pixel
-	unsigned char* getPixel(size_t x, size_t y) { return &pixels[(y * width + x) * depth]; }
+	const uint8_t* getPixels() const { return pixels; }
 
 	/// Gets a pixel at a given coordinate
 	/// \warning Does not do bounds checking
 	/// \returns The address of the first byte of the given pixel
-	const unsigned char* getPixel(size_t x, size_t y) const { return &pixels[(y * width + x) * depth]; }
+	uint8_t* getPixel(size_t x, size_t y) { return &pixels[(y * width + x) * depth]; }
+
+	/// Gets a pixel at a given coordinate
+	/// \warning Does not do bounds checking
+	/// \returns The address of the first byte of the given pixel
+	const uint8_t* getPixel(size_t x, size_t y) const { return &pixels[(y * width + x) * depth]; }
 
 	size_t getWidth() const { return width; };
 
@@ -108,7 +108,7 @@ public:
 
 private:
 
-	unsigned char* pixels;
+	uint8_t* pixels;
 	size_t width;
 	size_t height;
 	size_t depth;

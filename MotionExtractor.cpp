@@ -9,7 +9,7 @@ using namespace std;
 
 namespace {
 
-const size_t kDownscaleRatio = 3;
+const size_t kDownscaleRatio = 2;
 const size_t kDownscaleSquare = kDownscaleRatio * kDownscaleRatio;
 const size_t kBytesPerPixel = 3;
 
@@ -28,7 +28,9 @@ MotionExtractor::MotionExtractor(size_t frameWidth,
 	  erodedMask(),
 	  offs(),
 	  currentImage(),
-	  currentStableTimes(nullptr),
+	  currentStableTimes(),
+	  downscaleBuff(),
+	  downscaleAccumulators(),
 	  refImage(),
 	  stableRecords(),
 	  firstFrame(true),
@@ -55,7 +57,9 @@ MotionExtractor::MotionExtractor(size_t frameWidth,
 	imageArea = imageWidth * imageHeight;
 	imageSize = imageArea * kBytesPerPixel;
 	currentImage.reset(new VideoFrame(imageWidth, imageHeight, kBytesPerPixel, false));
-	currentStableTimes = new unsigned int[imageArea];
+	currentStableTimes.resize(imageArea);
+	downscaleBuff.reset(new VideoFrame(imageWidth, imageHeight, kBytesPerPixel));
+	downscaleAccumulators.resize(imageSize);
 	refImage.reset(new VideoFrame(imageWidth, imageHeight, kBytesPerPixel, false));
 	stableRecords = new unsigned int[imageArea];
 	motionMask.reset(new VideoFrame(imageWidth, imageHeight, kBytesPerPixel, false));
@@ -77,15 +81,9 @@ MotionExtractor::MotionExtractor(size_t frameWidth,
 	reset();
 }
 
-MotionExtractor::~MotionExtractor()
-{
-	delete[] currentStableTimes;
-	delete[] stableRecords;
-}
-
 /// Returns true if the two pixels are significantly different
-bool MotionExtractor::pixelIsDifferent(unsigned char* __restrict pa,
-                                      unsigned char* __restrict pb)
+bool MotionExtractor::pixelIsDifferent(uint8_t* __restrict pa,
+                                       uint8_t* __restrict pb)
 {
 	bool ret = false;
 	for (size_t b = 0; b < kBytesPerPixel; ++b) {
@@ -109,18 +107,16 @@ VideoFrame& MotionExtractor::generateMotionMask(const VideoFrame& frame)
 	}
 
 	// Downscale the current image into a temporary buffer
-	unsigned char* tempCurrent = new unsigned char[imageSize];
-	downscale(frame, tempCurrent);
+	downscale(frame, *downscaleBuff);
 
 	// The first frame is copied to the reference image to avoid the formation of a screen-wide delta for one frame.
 	if (firstFrame) {
-		memcpy(currentImage->getPixels(), tempCurrent, imageSize);
-		memcpy(refImage->getPixels(), tempCurrent, imageSize);
-		delete[] tempCurrent;
+		memcpy(currentImage->getPixels(), downscaleBuff->getPixels(), imageSize);
+		memcpy(refImage->getPixels(), downscaleBuff->getPixels(), imageSize);
 		firstFrame = false;
 		// No motion on the first frame. Wipe the motion channel (0)
-		unsigned char* mask = motionMask->getPixels();
-		unsigned char* mEnd = mask + motionMask->getTotalSize();
+		uint8_t* mask = motionMask->getPixels();
+		uint8_t* mEnd = mask + motionMask->getTotalSize();
 		for (; mask < mEnd; mask += motionMask->getBytesPerPixel()) {
 			mask[0] = 0;
 		}
@@ -128,11 +124,11 @@ VideoFrame& MotionExtractor::generateMotionMask(const VideoFrame& frame)
 	}
 
 	// See if the current image has changed significantly
-	unsigned int* currentTime = currentStableTimes;
-	unsigned char* tip = tempCurrent;
-	unsigned char* bmp = motionMask->getPixels();
-	unsigned char* cip = currentImage->getPixels();
-	unsigned char* currEnd = cip + imageSize;
+	unsigned int* currentTime = currentStableTimes.data();
+	uint8_t* tip = downscaleBuff->getPixels();
+	uint8_t* bmp = motionMask->getPixels();
+	uint8_t* cip = currentImage->getPixels();
+	uint8_t* currEnd = cip + imageSize;
 	for (; cip < currEnd; cip += kBytesPerPixel, tip += kBytesPerPixel,
 	        bmp += kBytesPerPixel, ++currentTime) {
 		if (pixelIsDifferent(tip, cip)) {
@@ -147,13 +143,12 @@ VideoFrame& MotionExtractor::generateMotionMask(const VideoFrame& frame)
 			}
 		}
 	}
-	delete[] tempCurrent;
 
 	// If the current pixel has set a new stability record or is close to the
 	// background pixel, copy it over. Also light up our blob map.
-	currentTime = currentStableTimes;
+	currentTime = currentStableTimes.data();
 	unsigned int* record = stableRecords;
-	unsigned char* rip = refImage->getPixels();
+	uint8_t* rip = refImage->getPixels();
 	bmp = motionMask->getPixels();
 	cip = currentImage->getPixels();
 	for (; cip < currEnd; cip += kBytesPerPixel, rip += kBytesPerPixel,
@@ -175,8 +170,8 @@ VideoFrame& MotionExtractor::generateMotionMask(const VideoFrame& frame)
 	if (erosionLevel > 0) {
 		int x = 0;
 		int y = 0;
-		unsigned char* eroded = erodedMask->getPixels();
-		unsigned char* bEnd = motionMask->getPixels() + motionMask->getTotalSize();
+		uint8_t* eroded = erodedMask->getPixels();
+		uint8_t* bEnd = motionMask->getPixels() + motionMask->getTotalSize();
 		for (bmp = motionMask->getPixels(); bmp < bEnd; bmp += kBytesPerPixel, eroded += kBytesPerPixel) {
 			// If the current pixel is "moving"
 			if (bmp[0] > 0) {
@@ -242,46 +237,60 @@ VideoFrame& MotionExtractor::generateMotionMask(const VideoFrame& frame)
 void MotionExtractor::reset()
 {
 	// For comparison purposes, it is important that pixel timers start at zero
-	memset(currentStableTimes, 0, imageArea * sizeof(unsigned int));
+	fill(currentStableTimes.begin(), currentStableTimes.end(), 0);
 	memset(stableRecords, 0, imageArea * sizeof(unsigned int));
 
 	// The first frame will be used to wipe the reference and current images.
 	firstFrame = true;
 }
 
-void MotionExtractor::downscale(const VideoFrame& frame, unsigned char* down)
+void MotionExtractor::downscale(const VideoFrame& frame, VideoFrame& down)
 {
-	const unsigned char* srcPixel = frame.getPixels();
-	// We'll be sampling multiple rows at once
-	const unsigned char* lines[kDownscaleRatio];
-	for (size_t c = 0; c < kDownscaleRatio; ++c)
-		lines[c] = srcPixel + srcLineSize * c;
+	const uint8_t* srcPixel = frame.getPixels();
+	unsigned short* accum = downscaleAccumulators.data();
+	unsigned short* accumRow = accum;
+	unsigned short* accumEnd = accum + downscaleAccumulators.size();
 
-	unsigned char* destPixel = down;
-	unsigned char* downEnd = down + imageSize;
-	size_t rowsComplete = 0;
-	while (destPixel < downEnd) {
-		// Set up accumulators
-		unsigned int accumulators[kBytesPerPixel] = {0};
-		// Accumulate kDownscaleRatio pixels from kDownscaleRatio rows
+	int accumRowsDone = 0;
+	size_t rowPixelsDone = 0;
+
+	// Clear the accumulators
+	fill(downscaleAccumulators.begin(), downscaleAccumulators.end(), 0);
+
+	// source rows accumulated for the current accumulator row
+	int srcRowsPerAccumRow = 0;
+
+	while (accum < accumEnd) {
+
+		// Accumulate the downscale ratio of pixels, then advance the accumulator pointer
 		for (size_t p = 0; p < kDownscaleRatio; ++p) {
-			for (size_t l = 0; l < kDownscaleRatio; ++l) {
-				for (size_t b = 0; b < kBytesPerPixel; ++b)
-					accumulators[b] += lines[l][b];
+			for (size_t c = 0; c < kBytesPerPixel; ++c)
+				accum[c] += srcPixel[c];
 
-				lines[l] += kBytesPerPixel;
-			}
+			srcPixel += kBytesPerPixel;
 		}
-		for (size_t b = 0; b < kBytesPerPixel; ++b)
-			destPixel[b] = (unsigned char)(accumulators[b] / kDownscaleSquare);
-		destPixel += kBytesPerPixel;
-		// If we've started a new row, shift the lines accordingly
-		if ((size_t)(destPixel - down)  % destLineSize == 0) {
-			++rowsComplete;
-			for (size_t c = 0; c < kDownscaleRatio; ++c)
-				lines[c] = srcPixel + srcLineSize * (rowsComplete * kDownscaleRatio + c);
+		accum += kBytesPerPixel;
+
+		// If we've reached the end of a accumulator row
+		if (++rowPixelsDone == imageWidth) {
+			rowPixelsDone = 0;
+
+			// Only move to a new accumulator row if we've accumulated the correct number of source rows
+			if (++srcRowsPerAccumRow == kDownscaleRatio) {
+				++accumRowsDone;
+				accumRow = downscaleAccumulators.data() + accumRowsDone * destLineSize;
+				srcRowsPerAccumRow = 0;
+			}
+
+			// Move back to the start of the row, or advance to the next one
+			accum = accumRow;
+			srcPixel = frame.getPixels() + (accumRowsDone * kDownscaleRatio + srcRowsPerAccumRow) * srcLineSize;
 		}
 	}
+	// Now that we've accumulated everything, just divide it by the number of pixels accumulated
+	auto dp = down.getPixels();
+	for (accum = downscaleAccumulators.data(); accum < accumEnd; ++accum, ++dp)
+		*dp = *accum / kDownscaleSquare;
 }
 
 void MotionExtractor::setSensitivity(int newSens)

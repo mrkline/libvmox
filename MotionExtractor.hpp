@@ -32,8 +32,6 @@ public:
 	                double videoFPS,
 	                bool  benchmark);
 
-	~MotionExtractor();
-
 	/**
 	 * \brief Updates the motion mask given a new frame.
 	 * \param frame The next frame of video to process
@@ -90,17 +88,20 @@ public:
 
 private:
 	/// Returns true if any of the channels in the two given pixels differ by MotionExtractor::motionThreshold
-	bool pixelIsDifferent(unsigned char* __restrict pa,
-	                      unsigned char* __restrict pb);
+	bool pixelIsDifferent(uint8_t* __restrict pa,
+	                      uint8_t* __restrict pb);
 
-	/// Downscales an image
-	void downscale(const VideoFrame& frame, unsigned char* down);
+	/**
+	 * \brief Downscales an image
+	 * \param frame The video frame being downscaled
+	 */
+	void downscale(const VideoFrame& frame, VideoFrame& down);
 
 	/**
 	 * \brief The mask of "moving" pixels
 	 *
 	 * This mask is a 24-bit RGB image so that it can be used for both display and programmatic purposes.
-	 * The motion mask is contained in the blue channel - the red and green channels can be used as-desired
+	 * The motion mask is contained in the first channel - the other two channels can be used as-desired
 	 * by the user
 	 * \todo Switch to 8 or 16-bit color?
 	 */
@@ -128,7 +129,14 @@ private:
 
 	/// The numer of frames since each pixel of the current image changed
 	/// significantly
-	unsigned int* currentStableTimes;
+	std::vector<unsigned int> currentStableTimes;
+
+	/// A buffer for downscaling new frames and comparing them to the current image
+	/// to see if they've changed
+	std::unique_ptr<VideoFrame> downscaleBuff;
+
+	/// Accumulators used for downscaling new frames
+	std::vector<unsigned short> downscaleAccumulators;
 
 	/// The "background" image
 	std::unique_ptr<VideoFrame> refImage;
