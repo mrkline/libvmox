@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+
 #include "StreamVideoFrame.hpp"
 #include "VideoReader.hpp"
 
@@ -29,7 +31,11 @@ public:
 
 	int64_t clocksToTimestamp(clock_t c) const override;
 
+	int64_t durationToTimestamp(const std::chrono::milliseconds& d) const override;
+
 	clock_t timestampToClocks(int64_t ts) const override;
+
+	std::chrono::milliseconds timestampToDuration(int64_t ts) const override;
 
 	int64_t timestampToSeconds(int64_t ts) const override;
 

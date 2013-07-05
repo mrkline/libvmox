@@ -29,10 +29,20 @@ public:
 	virtual void seek(int64_t ts) = 0;
 
 	/// Converts clocks to the video's internal timestamp.
+	/// \warning clock() may not update rapidly enough
+	///          to track time between frames on some systems
 	virtual int64_t clocksToTimestamp(clock_t c) const = 0;
 
+	/// Converts a std::duration (in milliseconds) to the video's internal timestamp
+	virtual int64_t durationToTimestamp(const std::chrono::milliseconds& d) const = 0;
+
 	/// Converts the video's internal timestamp to clocks
+	/// \warning clock() may not update rapidly enough
+	///          to track time between frames on some systems
 	virtual clock_t timestampToClocks(int64_t ts) const = 0;
+
+	/// Converts the video's internal timestamp to a std::duration (in milliseconds)
+	virtual std::chrono::milliseconds timestampToDuration(int64_t ts) const = 0;
 
 	/// Converts a video's timestamp to seconds (rounded to nearest)
 	virtual int64_t timestampToSeconds(int64_t ts) const = 0;

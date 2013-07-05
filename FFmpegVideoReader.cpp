@@ -203,10 +203,22 @@ int64_t FFmpegVideoReader::clocksToTimestamp(clock_t c) const
 
 }
 
+int64_t FFmpegVideoReader::durationToTimestamp(const std::chrono::milliseconds& d) const
+{
+	static AVRational msBase = {1, 1000};
+	return av_rescale_q(d.count(), msBase, videoTimeBase);
+}
+
 clock_t FFmpegVideoReader::timestampToClocks(int64_t ts) const
 {
 	static AVRational clockBase = {1, CLOCKS_PER_SEC};
 	return (clock_t)av_rescale_q(ts, videoTimeBase, clockBase);
+}
+
+std::chrono::milliseconds FFmpegVideoReader::timestampToDuration(int64_t ts) const
+{
+	static AVRational msBase = {1, 1000};
+	return std::chrono::milliseconds(av_rescale_q(ts, videoTimeBase, msBase));
 }
 
 int64_t FFmpegVideoReader::timestampToSeconds(int64_t ts) const
