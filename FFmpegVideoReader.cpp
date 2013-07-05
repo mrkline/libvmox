@@ -33,7 +33,7 @@ bool FFmpegVideoReader::canReadFile(const string& filename)
 	/// \todo Add more? Just construct a reader?
 }
 
-FFmpegVideoReader::FFmpegVideoReader(const string& filename)
+FFmpegVideoReader::FFmpegVideoReader(const string& filename, bool flipBytes)
 	: ctxt(nullptr),
 	  codecCtxt(nullptr),
 	  swsCtxt(nullptr),
@@ -42,7 +42,8 @@ FFmpegVideoReader::FFmpegVideoReader(const string& filename)
 	  currentPacket(),
 	  amountProcessed(0),
 	  currentFrame(),
-	  fps(-1)
+	  fps(-1),
+	  byteFlip(flipBytes)
 {
 	// If needed, do global initialization
 	if (needsInit)
@@ -146,7 +147,8 @@ const shared_ptr<StreamVideoFrame>& FFmpegVideoReader::getNextFrame()
 	/// \todo Why do we have to flip red and blue? The answer probably has to do with endianness
 	if (swsCtxt == nullptr) {
 		swsCtxt = sws_getContext(frame->width, frame->height, (PixelFormat)frame->format,
-		                         frame->width, frame->height, PIX_FMT_BGR24, SWS_FAST_BILINEAR,
+		                         frame->width, frame->height, byteFlip ? PIX_FMT_BGR24 : PIX_FMT_RGB24,
+		                         SWS_FAST_BILINEAR,
 		                         nullptr, nullptr, nullptr);
 		if (swsCtxt == nullptr)
 			throw Exceptions::IOException("Error while calling sws_getContext", __FUNCTION__);

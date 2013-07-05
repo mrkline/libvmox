@@ -15,7 +15,8 @@ public:
 
 	/// Constructor
 	/// \param filename Path of the video file to open
-	FFmpegVideoReader(const std::string& filename);
+	/// \param flipBytes true to flip from RGB to BGR (may help with endianness issues)
+	FFmpegVideoReader(const std::string& filename, bool flipBytes = false);
 
 	~FFmpegVideoReader();
 
@@ -68,4 +69,5 @@ private:
 	/// Frame rate in frames per second (extracted from the video stream)
 	double fps;
 
+	bool byteFlip;
 };
