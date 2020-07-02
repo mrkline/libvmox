@@ -95,3 +95,12 @@ This process can be tweaked by modifying any of three parameters:
 ## License
 
 See `license.md`
+
+## Retrospective, July 2020
+
+This was a fun (work) project that taught me a bunch about video decoding,
+demuxing, and ffmpeg. There's some wonky decisions (like manually downscaling
+the video instead of using libswscale), but also some pretty cool image analysis
+stuff. The motion detection was used to count traffic as it passed through an
+intersection, and I had a great time tuning the parameters to accurately count
+vehicles starting, stopping, and passing through particular lanes.
